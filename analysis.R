@@ -136,7 +136,7 @@ data_sum_norm_neqc <- normaliseIllumina(data_sum, method="neqc", transform="none
 save(data_sum_norm, file="data_sum_norm.RData")
 save(data_sum_norm_neqc, file="data_sum_norm_neqc.RData")
 
-pdf("normalization.pdf", paper="a4r", width=15)
+pdf("normalization2.pdf", paper="a4r", width=15)
 par(mai=c(1.5,1,0.2,0.1), mfrow=c(1,2))
 boxplot(exprs(data_sum), ylab=expression(log[2](intensity)), las=2, outline=FALSE)
 boxplot(nObservations(data_sum), ylab="number of beads", las=2, outline=FALSE)
@@ -144,6 +144,10 @@ boxplot(nObservations(data_sum), ylab="number of beads", las=2, outline=FALSE)
 par(mai=c(1.5,1,0.2,0.1), mfrow=c(1,2))
 boxplot(exprs(data_sum_norm), ylab=expression(log[2](intensity)), las=2, outline=FALSE)
 boxplot(nObservations(data_sum_norm), ylab="number of beads", las=2, outline=FALSE)
+
+par(mai=c(1.5,1,0.2,0.1), mfrow=c(1,2))
+boxplot(exprs(data_sum_norm_neqc), ylab=expression(log[2](intensity)), las=2, outline=FALSE)
+boxplot(nObservations(data_sum_norm_neqc), ylab="number of beads", las=2, outline=FALSE)
 dev.off()
 
 #####DE analysis###                                                                          NOT DONE
