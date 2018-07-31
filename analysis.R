@@ -5,6 +5,8 @@ library(rlist)
 library(grid)
 library(ggplot2)
 library(scater)
+library(stringr)
+library(Biobase)
 
 
 setwd("~/Documents/IFN_array/")
@@ -22,7 +24,7 @@ metrics_list <- list.remove(metrics_list, 'name')
 names(metrics_list) <- metrics_vec
 
 metrics_list <- lapply(metrics_list, function(x){
-  mutate(x, snr = P95Grn/P05Grn)
+  dplyr::mutate(x, snr = P95Grn/P05Grn)
 })
 
 #Produce SNR plot for each array (ggplot2)                                                     DONE
@@ -33,7 +35,6 @@ for (a in 1:c(length(metrics_list))) {
 layout <- matrix(c(1:8), nrow = 2, byrow = TRUE)
 multiplot(plotlist = plots, layout = layout)
 
-qplot(1:12,metrics_list[[1]]$snr, data = metrics_list[[1]])
 
 #Read bead level data                                                                         DONE
 targets=read.table("targets.txt",header=TRUE,sep="\t",as.is=TRUE)
@@ -77,6 +78,7 @@ for(n in c(1:96)){
 }
 dev.off()
 
+combinedControlPlot(data, array=1)
 
 #BASH correction                                                                             DONE
 BASH_output <- mclapply(c(1:96), function(x) BASH(data, array = x, useLocs = FALSE))
@@ -119,7 +121,7 @@ data_sum <- beadarray::summarize(data_BASH, channelList = list(greenchannel))
 #save datasumm object
 save(data_sum, file="data_sum.RData")
 
-###QC                                                                                        ERROR
+###QC                                                                                        DONE
 library (arrayQualityMetrics)
 arrayQualityMetrics (data_sum, force = TRUE)
 
@@ -131,7 +133,7 @@ data_sum_log2 <- channel(data_sum, "G")
 data_sum_log2 <- addFeatureData(data_sum_log2, toAdd = c("SYMBOL", "PROBEQUALITY", "CODINGZONE", "PROBESEQUENCE", "GENOMICLOCATION"))
 
 data_sum_norm <- normaliseIllumina(data_sum_log2, method="quantile", transform="none" )
-data_sum_norm_neqc <- normaliseIllumina(data_sum, method="neqc", transform="none" )
+data_sum_norm_neqc <- normaliseIllumina(data_sum_log2, method="neqc", transform="none" )
 
 save(data_sum_norm, file="data_sum_norm.RData")
 save(data_sum_norm_neqc, file="data_sum_norm_neqc.RData")
@@ -150,36 +152,76 @@ boxplot(exprs(data_sum_norm_neqc), ylab=expression(log[2](intensity)), las=2, ou
 boxplot(nObservations(data_sum_norm_neqc), ylab="number of beads", las=2, outline=FALSE)
 dev.off()
 
-#####DE analysis###                                                                          NOT DONE
+#####DE analysis###                                                                          DONE
 library (limma)
 
-#Design matrix                                                                               NOT DONE
-design <- model.matrix(~0 + "GROUP")
+#Design matrix                                                                               DONE
+pd <-pData(data_sum_norm)
+sample_name <- pd$Sample_Name
+sample_group <- toupper(str_extract(pd$Sample_Name,  "^[A-z][0-9]{1,2}"))
 
-#Fit linear model                                                                            NOT DONE
-fit<-lmFit(exprs(),design)
 
-#Define contrast matrix                                                                      NOT DONE
-cont.matrix <- makeContrasts()
+design1 <- model.matrix(~0 + sample_group)
+colnames(design1) <- str_remove(colnames(design1), "sample_group")
+
+#Fit linear model                                                                            DONE
+fit<-limma::lmFit(exprs(data_sum_norm),design1)
+
+#Define contrast matrix (Timepoints vs 0)                                                    DONE
+contrasts_group_1 <- as.vector(read.delim("contrasts1.txt",header = FALSE)[[1]])  
+cont.matrix_1 <- makeContrasts(contrasts = contrasts_group_1, levels = design1)
  
-#Extract linear model fit for the contrasts                                                  NOT DONE
-fit2  <- contrasts.fit(fit, cont.matrix) 
-fit2  <- eBayes(fit2)
+#Define contrast matrix (Same time diff treatment)                                   
+contrasts_group_2 <- as.vector(read.delim("contrasts2.txt",header = FALSE)[[1]])  
+cont.matrix_2 <- makeContrasts(contrasts = contrasts_group_2, levels = design1)
 
-#Attach annotation information                                                               NOT DONE
-anno <- fData()
+#Define contrast matrix (Between time points)                                   
+contrasts_group_3 <- as.vector(read.delim("contrasts3.txt",header = FALSE)[[1]])  
+cont.matrix_3 <- makeContrasts(contrasts = contrasts_group_3, levels = design1)
+
+#Extract linear model fit for the contrasts                                                  DONE
+fit_1  <- contrasts.fit(fit, cont.matrix_1) 
+fit_1  <- eBayes(fit_1)
+fit_2  <- contrasts.fit(fit, cont.matrix_2) 
+fit_2  <- eBayes(fit_2)
+fit_3  <- contrasts.fit(fit, cont.matrix_3) 
+fit_3  <- eBayes(fit_3)
+
+#Attach annotation information                                                               DONE
+anno <- fData(data_sum_norm)
 colnames(anno)
-anno <- anno[,c("Symbol", "Entrez_Gene_ID", "Chromosome", "Cytoband")]
-fit2$genes <- anno
-topTable(fit2)
+anno <- anno[,c("SYMBOL", "IlluminaID")]
+fit_1$genes <- anno
+topTable(fit_1)
 
-#Decide total DEGs                                                                           NOT DONE
-decideTests(fit2)
-table(decideTests(fit2))
-sum(abs(decideTests(fit2))==1)
+fit_2$genes <- anno
+topTable(fit_2)
 
-#Visualize the DE analysis results
-volcanoplot(fit2, highlight = 10, names = fit2$genes$Symbol)
+fit_3$genes <- anno
+topTable(fit_3)
+
+#Decide total DEGs                                                                           DONE
+decideTests(fit_1)
+table(decideTests(fit_1))
+sum(abs(decideTests(fit_1))==1, na.rm = TRUE)
+
+decideTests(fit_2)
+table(decideTests(fit_2))
+sum(abs(decideTests(fit_2))==1, na.rm = TRUE)
+
+decideTests(fit_3)
+table(decideTests(fit_3))
+sum(abs(decideTests(fit_3))==1, na.rm = TRUE)
+
+#Visualize the DE analysis results                                                           DONE
+volcanoplot(fit_1, highlight = 10, names = fit_1$genes$SYMBOL)
+volcanoplot(fit_2, highlight = 10, names = fit_2$genes$SYMBOL)
+volcanoplot(fit_3, highlight = 10, names = fit_3$genes$SYMBOL)
+
+#save DE contrast file
+write.fit(fit_1 , file = "Result_fit_1.csv", adjust="BH")
+write.fit(fit_2 , file = "Result_fit_2.csv", adjust="BH")
+write.fit(fit_3 , file = "Result_fit_3.csv", adjust="BH")
 
 save.image(file = "analysis.RData")
 unlink(".RData")
