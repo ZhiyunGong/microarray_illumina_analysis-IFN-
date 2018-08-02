@@ -168,9 +168,9 @@ colnames(design1) <- str_remove(colnames(design1), "sample_group")
 fit<-limma::lmFit(exprs(data_sum_norm),design1)
 
 #Define contrast matrix (Timepoints vs 0)                                                    DONE
-contrasts_group_1 <- as.vector(read.delim("contrasts1.txt",header = FALSE)[[1]])  
+contrasts_group <- read.delim("contrasts1.txt",header = FALSE)[[1]]  
 cont.matrix_1 <- makeContrasts(contrasts = contrasts_group_1, levels = design1)
- 
+
 #Define contrast matrix (Same time diff treatment)                                   
 contrasts_group_2 <- as.vector(read.delim("contrasts2.txt",header = FALSE)[[1]])  
 cont.matrix_2 <- makeContrasts(contrasts = contrasts_group_2, levels = design1)
@@ -219,6 +219,8 @@ volcanoplot(fit_2, highlight = 10, names = fit_2$genes$SYMBOL)
 volcanoplot(fit_3, highlight = 10, names = fit_3$genes$SYMBOL)
 
 #save DE contrast file
+write.fit(fit_1 , file = "Result_fit_1_B2-B0.csv", adjust="BH")
+
 write.fit(fit_1 , file = "Result_fit_1.csv", adjust="BH")
 write.fit(fit_2 , file = "Result_fit_2.csv", adjust="BH")
 write.fit(fit_3 , file = "Result_fit_3.csv", adjust="BH")
